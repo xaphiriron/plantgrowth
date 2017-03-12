@@ -1,0 +1,36 @@
+{
+  "modListVersion": 2,
+  "modList": [
+	  {
+	    "modid": "plantgrowth",
+	    "name": "Plant Growth",
+	    "description": "plant growth, spreading, and crossbreeding mod",
+	    "version": "0.1",
+	    "mcversion": "1.10.2",
+	    "updateUrl": "",
+	    "authorList": [ "xax"],
+	    "credits": "",
+	    "logoFile": "",
+	    "screenshots": [ ],
+	    "requiredMods": [ "Forge" ],
+	    "dependencies": [ "Forge" ],
+	    "dependants": [ ],
+	    "useDependencyInformation": true
+	  }
+  ,
+	{
+	  "modid": "examplemod",
+	  "name": "Example Mod",
+	  "description": "Example placeholder mod.",
+	  "version": "${version}",
+	  "mcversion": "${mcversion}",
+	  "url": "",
+	  "updateUrl": "",
+	  "authorList": ["ExampleDude"],
+	  "credits": "The Forge and FML guys, for making this example",
+	  "logoFile": "",
+	  "screenshots": [],
+	  "dependencies": []
+	}
+	]
+}
