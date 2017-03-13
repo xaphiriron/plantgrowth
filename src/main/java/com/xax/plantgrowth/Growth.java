@@ -17,17 +17,15 @@ import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 
 @Mod(modid = "plantgrowth")
 public class Growth {
-	public static final String modId = "plantgrowth";
-	public static final Logger log = LogManager.getLogger("plantgrowth");
-	
+    public static final String modId = "plantgrowth";
+    public static final Logger log = LogManager.getLogger("plantgrowth");
+    
     @SidedProxy(modId = "plantgrowth", clientSide = "com.xax.plantgrowth.proxy.ClientProxy", serverSide = "com.xax.plantgrowth.proxy.ServerProxy")
     public static CommonProxy proxy;
 
     @EventHandler
     public void PreInit(FMLPreInitializationEvent event){
-        log.info("forge preinit");
-        proxy.foo(log);
-        log.info("done loading blocks");
+        proxy.preInit(log);
     }
     
     @EventHandler

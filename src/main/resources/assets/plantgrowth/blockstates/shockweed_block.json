@@ -1,38 +1,62 @@
 { "forge_marker": 1
 , "defaults":
-  { "model": "cross"
+  { "transform": "forge:default-block"
+  , "model": "cross"
   , "textures":
     { "all": "plantgrowth:blocks/shockweed_stage_0"
     }
   }
 , "variants":
-  { "age":
-    { "0":
-      { "textures":
-        { "cross": "plantgrowth:blocks/shockweed_stage_0"
-        }
-      }
-    , "1":
-      { "textures":
-        { "cross": "plantgrowth:blocks/shockweed_stage_1"
-        }
-      }
-    , "2":
-      { "textures":
-        { "cross": "plantgrowth:blocks/shockweed_stage_2"
-        }
-      }
-    , "3":
-      { "textures":
-        { "cross": "plantgrowth:blocks/shockweed_stage_3"
-        }
+  { "age=0,yield=0":
+    { "textures":
+      { "cross": "plantgrowth:blocks/shockweed_stage_0"
       }
     }
-  , "normal":
+  , "age=1,yield=0":
     { "model": "cross"
+    , "textures":
+      { "cross": "plantgrowth:blocks/shockweed_stage_1"
+      }
+    }
+  , "age=2,yield=0":
+    { "model": "cross"
+    , "textures":
+      { "cross": "plantgrowth:blocks/shockweed_stage_2"
+      }
+    }
+  , "age=3,yield=0":
+    { "model": "cross"
+    , "textures":
+      { "cross": "plantgrowth:blocks/shockweed_stage_3"
+      }
+    }
+  , "age=0,yield=1":
+    { "model": "cross"
+    , "textures":
+      { "cross": "plantgrowth:blocks/shockweed_stage_0_withered"
+      }
+    }
+  , "age=1,yield=1":
+    { "model": "cross"
+    , "textures":
+      { "cross": "plantgrowth:blocks/shockweed_stage_1_withered"
+      }
+    }
+  , "age=2,yield=1":
+    { "model": "cross"
+    , "textures":
+      { "cross": "plantgrowth:blocks/shockweed_stage_2_withered"
+      }
+    }
+  , "age=3,yield=1":
+    { "model": "cross"
+    , "textures":
+      { "cross": "plantgrowth:blocks/shockweed_stage_3_withered"
+      }
     }
   , "inventory":
-    { "model": "cross"
+    { "model": "item/generated"
+    , "layer0": "plantgrowth:blocks/shockweed_stage_0"
     }
   }
 }

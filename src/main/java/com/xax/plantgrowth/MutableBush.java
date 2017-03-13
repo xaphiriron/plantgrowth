@@ -10,6 +10,9 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import com.xax.enumerable.BitField;
+import com.xax.plantgrowth.util.QuadPredicate;
+
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockBush;
 import net.minecraft.block.BlockFarmland;
@@ -40,8 +43,16 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
     private int highElevation;
 
     private int maxAge;
-    private PropertyInteger age;
+    private BitField<PropertyInteger> age;
     private ArrayList<AxisAlignedBB> aabbs = new ArrayList<AxisAlignedBB>();
+    
+    private boolean witherable;
+    private int witherVal; // the yield data value that means "this plant is withered"
+    private QuadPredicate<World, BlockPos, IBlockState, Random> witheringCallback;
+    private WitheringAction witheringAction;
+    
+    private int maxYield;
+    private BitField<PropertyInteger> yield;
     
     private HashSet<GrowthModifier> growthModifiers;
     
@@ -59,6 +70,15 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         SELECT,
         COMPLICATED
     }
+    
+    public enum Witherable {
+        WITHERABLE
+    }
+    
+    public enum WitheringAction {
+        DIES_INSTANTLY,
+        REVERSE_GROWTH
+    }
 
     public enum GrowthModifier {
         LIKES_MOISTURE, // grows faster on wet farmland or when its soil is adjacent to a water block (but w/ no bonus for both)
@@ -69,9 +89,10 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         LINE_GROWTH,    // grows slower when there's adjacent crops of the same type in anything other than a straight line
         PREFERS_LIGHT,  // grows slower at lower light levels
         PREFERS_DARK,   // grows slower at higher light levels
+        LIKES_RAIN,     // grows (considerably) faster when it's raining
         SPREADS;        // spreads like mushrooms. if it has growth stages, only spreads at full growth
     }
-        
+
     public MutableBush(String name) {
         this.inConstructor = true;
         this.init(name);
@@ -81,8 +102,28 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
     public MutableBush(String name, int growthStages) {
         this.inConstructor = true;
         this.init(name);
-        this.canGrowToStage (growthStages-1);
+        this.canGrowToStage (growthStages <= 0 ? 0 : growthStages-1);
+
+        this.rebuildBlockState();
+        this.inConstructor = false;
+    }
+    public MutableBush(String name, int growthStages, int yieldStages) {
+        this.inConstructor = true;
+        this.init(name);
+        this.canGrowToStage (growthStages <= 0 ? 0 : growthStages-1);
+        this.hasYieldStages (yieldStages <= 0 ? 0 : yieldStages-1);
+
+        this.rebuildBlockState();
+        this.inConstructor = false;
+    }
+    public MutableBush(String name, int growthStages, int yieldStages, Witherable w) {
+        this.inConstructor = true;
+        this.init(name);
+        this.setWitherable();
+        this.canGrowToStage (growthStages <= 0 ? 0 : growthStages-1);
+        this.hasYieldStages(yieldStages <= 0 ? 0 : yieldStages-1);
         
+        this.rebuildBlockState();
         this.inConstructor = false;
     }
     private void init(String name) {
@@ -95,6 +136,11 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
             .allowAnyLight()
             .allowAnyElevation();
         this.maxAge = 0;
+        this.maxYield = 0;
+        
+        this.witherable = false;
+        this.witheringCallback = null;
+        
         this.growthModifiers = new HashSet<GrowthModifier>();
 
         this.spreadHoriz = 1;
@@ -103,7 +149,7 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         
         this.crop = null;
         this.seed = null;
-                
+
         this.setHardness(0.0F);
         this.setSoundType(SoundType.PLANT);
         this.disableStats(); // i guess plants aren't counted for mined/placed stats
@@ -193,27 +239,44 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         return this;
     }
     
-    public MutableBush canGrowToStage(int maxAge) {
-        if (maxAge <= 0 || maxAge > 15) {
-            throw new RuntimeException ("invalid bush age; maxAge:" + maxAge + ".");
-        } else {
-            ArrayList<Integer> baseHeights = new ArrayList<Integer>(maxAge + 1);
-            if (!this.inConstructor) {
-                //log.warn("after-the-fact growth edit; blockState hack might leave the object in an indeterminate state.");
-            }
-            this.maxAge = maxAge;
-            this.age = PropertyInteger.create("age", 0, this.maxAge);
-            for (int i = maxAge + 1; i > 0; i--) {
-                baseHeights.add(8);
-            }
-            this.setGrowthHeight(baseHeights);
-                    
-            this.hackBlockState();
-            this.setDefaultState(this.blockState.getBaseState().withProperty(this.age, Integer.valueOf(0)));
-            this.setTickRandomly(true); // growing plants should receive ticks
-        }
+    
+    public MutableBush withersWhen (QuadPredicate<World, BlockPos, IBlockState, Random> witherCallback) {
+        this.witheringCallback = witherCallback;
         return this;
     }
+    
+    public MutableBush witherAction (WitheringAction witherAction) {
+        this.witheringAction = witherAction;
+        return this;
+    }
+    
+    /*
+     * probably-should-be-internal state-setting functions
+     */
+    public MutableBush canGrowToStage(int maxAge) {
+        ArrayList<Integer> baseHeights = new ArrayList<Integer>(maxAge + 1);
+        this.maxAge = maxAge;
+        for (int i = maxAge + 1; i > 0; i--) {
+            baseHeights.add(8);
+        }
+        this.setGrowthHeight(baseHeights);
+
+        this.setTickRandomly(true); // growing plants should receive ticks
+        return this;
+    }
+    
+    public MutableBush hasYieldStages(int maxYield) {
+        this.maxYield = maxYield;
+        return this;
+    }
+    
+    public MutableBush setWitherable() {
+        this.witherable = true;
+        this.witheringAction = WitheringAction.DIES_INSTANTLY; // this is the default
+        this.setTickRandomly(true); // withering plants should receive ticks
+        return this;
+    }
+    
     /**
      * takes a list of integer values that determine how tall the block is, in eighths of a block (so 8 is one block tall).
      * 
@@ -249,6 +312,48 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
      * after-the-fact this should be fine.
      * but, you know, no promises.
      */
+    private void rebuildBlockState() {
+        if (!this.inConstructor) {
+            //log.warn("after-the-fact growth edit; blockState hack might leave the object in an indeterminate state.");
+        }
+        IBlockState defaultState;
+        int ageBits = 0;
+        int yieldBits = 0;
+        
+        // first, set the props
+        if (this.hasAge()) {
+            this.age = new BitField<PropertyInteger>(PropertyInteger.create("age", 0, this.maxAge), this.maxAge);
+            ageBits = this.age.getUsedBits();
+        }
+        if (this.hasYield()) {
+            int actualMaxYield = this.maxYield + (this.witherable ? 1 : 0);
+            if (this.witherable) {
+                this.witherVal = this.maxYield + 1;
+            }
+            this.yield = new BitField<PropertyInteger>(PropertyInteger.create("yield", 0, actualMaxYield), actualMaxYield, ageBits);
+            yieldBits = this.yield.getUsedBits();
+        }
+        // then hack the state (since it needs the prop values to be set)
+        this.hackBlockState();
+        // then construct the default state (since it needs a blockState value + props set)
+        defaultState = this.blockState.getBaseState();
+        if (this.hasAge()) {
+            defaultState = defaultState.withProperty(this.age.getVal(), 0);
+        }
+        if (this.hasYield()) {
+            defaultState = defaultState.withProperty(this.yield.getVal(), 0);
+        }
+        // then check to see if the state is actually coherent wrt metadata space
+        if (ageBits + yieldBits > 4) {
+            throw new RuntimeException("too many metadata bits for plant \"" + this.name
+                    + "\"! age uses "+ ageBits +" bits (" + this.maxAge
+                    + "); yield uses " + yieldBits + " bits (" + this.maxYield + "+"
+                    + (this.witherable ? 1 : 0) + "); blocks only have 4! THIS BLOCK WILL NOT WORK CORRECTLY AT ALL");
+        }
+        // then set the default state!
+        this.setDefaultState(defaultState);
+    }
+    
     private void hackBlockState() {
         try {
             Field state = null;
@@ -346,7 +451,7 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
     }
 
     protected PropertyInteger getAgeProperty() {
-        return this.age;
+        return this.age.getVal();
     }
 
     protected IBlockState withAge(int age) {
@@ -354,22 +459,50 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
     }
 
     protected int getAge(IBlockState state) {
-        if (this.maxAge == 0) {
+        if (!this.hasAge()) {
             throw new RuntimeException ("tried to get age on a plant block without an age property.");
         } else {
-            return state.getValue(this.age).intValue();
+            return state.getValue(this.age.getVal());
+        }
+    }
+    protected int getYield(IBlockState state) {
+        if (this.maxYield == 0) {
+            throw new RuntimeException ("tried to get yield on a plant block without a yield property.");
+        } else {
+            return state.getValue(this.yield.getVal());
+        }
+    }
+    protected boolean getWithered(IBlockState state) {
+        int witheredValue;
+        if (!this.witherable) {
+            throw new RuntimeException ("tried to get withered on a plant block without a withered property.");
+        } else {
+            // sorry for the bit-twiddling here, but the idea is the withered value should be whatever yield value is all 1s
+            // tbqh this could and probably should be `this.maxYield+1` instead
+            /*witheredValue = this.maxYield == 0
+                    ? 1
+                    : (Integer.highestOneBit(this.maxYield) << 1) - 1;
+            */
+            witheredValue = this.maxYield + 1;
+            return state.getValue(this.yield.getVal()) == witheredValue;
         }
     }
     
     public boolean hasAge() {
         return this.maxAge != 0;
     }
+    public boolean hasWithered() {
+        return this.witherable;
+    }
+    public boolean hasYield() {
+        return this.maxYield > 0 || this.witherable;
+    }
 
     public boolean isMaxAge(IBlockState state) {
         if (this.maxAge == 0) {
             return true;
         } else {
-            return state.getValue(this.age).intValue() >= this.maxAge;
+            return state.getValue(this.age.getVal()).intValue() >= this.maxAge;
         }
     }
 
@@ -396,14 +529,47 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
     @Override
     public void updateTick(World worldIn, BlockPos pos, IBlockState state, Random rand) {
         super.updateTick(worldIn, pos, state, rand);
-        if (this.hasAge() && this.canGrowInLight (worldIn.getLightFromNeighbors(pos.up()))) {
-            int i = this.getAge(state);
-            if (i < this.getMaxAge()) {
-                float f = getGrowthChance(this, worldIn, pos);
-                if (rand.nextInt((int)(25.0F / f) + 1) == 0) {
-                    worldIn.setBlockState(pos, this.withAge(i + 1), 2);
+        boolean resetYield = false;
+        
+        if (this.witherable) {
+            if (this.witheringCallback != null && this.witheringCallback.test(worldIn, pos, state, rand)) {
+                switch (this.witheringAction) {
+                case DIES_INSTANTLY:
+                    worldIn.setBlockToAir(pos);
+                    return;
+                case REVERSE_GROWTH:
+                    int age = 0;
+                    // if it has age left to reverse, reverse it. if not, die.
+                    if (this.hasAge() && (age = this.getAge(state)) != 0) {
+                        worldIn.setBlockState(pos, state
+                            .withProperty(this.age.getVal(), age - 1)
+                            .withProperty(this.yield.getVal(), this.witherVal), 2);
+                    } else {
+                        worldIn.setBlockToAir(pos);
+                    }
+                    return;
+                default:
+                    throw new RuntimeException ("withering crop with no wither action set!");
                 }
             }
+            if (this.getWithered(state)) {
+                // this plant withered at some point, but now it's fine, so we should set the yield value to 0
+                resetYield = true;
+                state = state.withProperty(this.yield.getVal(), 0);
+            }
+        }
+
+        if (this.hasAge() && this.canGrowInLight (worldIn.getLightFromNeighbors(pos.up()))) {
+            int age = this.getAge(state);
+            if (age < this.getMaxAge()) {
+                float f = getGrowthChance(this, worldIn, pos);
+                if (rand.nextInt((int)(25.0F / f) + 1) == 0) {
+                    worldIn.setBlockState(pos, state.withProperty(this.age.getVal(), age + 1), 2);
+                }
+            }
+        } else if (resetYield) {
+            // reset wither state even if this can't grow / didn't grow this tick
+            worldIn.setBlockState(pos, state, 2);
         }
         if (this.growthModifiers.contains(GrowthModifier.SPREADS)
             && this.isMaxAge(state)
@@ -555,6 +721,13 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         if (this.growthModifiers.contains(GrowthModifier.PREFERS_DARK)) {
             f *= Math.sin((1 - light) * Math.PI) * 1.5 + 0.5;
         }
+        
+        // a large constant boost to growth % when it's raining (in a biome that gets rain) and outdoors
+        if (this.growthModifiers.contains(GrowthModifier.LIKES_RAIN)) {
+            if (worldIn.isRainingAt(pos)) {
+                f += 5.0F;
+            }
+        }
 
         return f;
     }
@@ -564,24 +737,61 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
      */
     @Override
     protected BlockStateContainer createBlockState() {
-        if (this.maxAge == 0) {
-            return new BlockStateContainer(this, new IProperty[0]);
+        final IProperty<?> props[];
+        // ugh i'm sure there's a better way to do this but i don't know it.
+        if (this.hasAge() && this.hasYield()) {
+            props = new IProperty[] {this.age.getVal(), this.yield.getVal()};
+        } else if (this.hasAge()) {
+            props = new IProperty[] {this.age.getVal()};
+        } else if (this.hasYield()) {
+            props = new IProperty[] {this.yield.getVal()};
         } else {
-            return new BlockStateContainer(this, new IProperty[] {this.age});
+            props = new IProperty[0];
         }
+        return new BlockStateContainer(this, props);
+    }
+
+    private String showState(IBlockState state) {
+        String age = "n";
+        String yield = "n";
+        String withered = "n";
+        if (this.hasAge()) {
+            age = String.format("%d", this.getAge(state));
+        }
+        if (this.hasYield()) {
+            if (this.witherable) {
+                withered = this.getWithered(state) ? "T" : "F";
+                if (this.maxYield != 0) {
+                    yield = "0";
+                }
+            } else {
+                yield = String.format("%d", this.getYield(state));
+            }
+        }
+        return "(" + age + "," + yield + "," + withered + ")";
     }
 
     public int getMetaFromState(IBlockState state) {
+        int meta = 0;
         if (this.hasAge()) {
-            return this.getAge(state);
+            meta |= state.getValue(this.age.getVal()) << this.age.getOffset();
         }
-        return 0;
+        if (this.hasYield()) {
+            meta |= state.getValue(this.yield.getVal()) << this.yield.getOffset();
+        }
+        System.out.println("metadata from state " + this.showState(state) + ": " + String.format("0x%01x", meta));
+        return meta & 0x0f; // hard limit metadata to 4 bits, even if the bitfields are busted
     }
 
     public IBlockState getStateFromMeta(int meta) {
-        if (this.hasAge() && meta >= 0 && meta <= this.maxAge) {
-            return this.withAge(meta);
+        IBlockState state = this.getDefaultState();
+        if (this.hasAge()) {
+            state = state.withProperty(this.age.getVal(), this.age.readValue(meta));
         }
-        return this.getDefaultState();
+        if (this.hasYield()) {
+            state = state.withProperty(this.yield.getVal(), this.yield.readValue(meta));
+        }
+        System.out.println("state from metadata " + String.format("0x%01x", meta) + ": " + this.showState(state));
+        return state;
     }
 }
