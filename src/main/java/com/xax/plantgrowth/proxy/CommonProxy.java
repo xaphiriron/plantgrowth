@@ -58,10 +58,10 @@ public abstract class CommonProxy implements IProxy{
         lightningPod = this.register(new MutableFood("lightning_pod", 3, 0.6f, false)
             .setFoodCallback(new TriConsumer<ItemStack,World,EntityPlayer>() {
                 public void accept(ItemStack itemStack, World world, EntityPlayer player) {
+                    player.addPotionEffect(new PotionEffect(MobEffects.FIRE_RESISTANCE, 600)); // i think this is 30 seconds
                     if (world.isRaining()
                             && world.canSeeSky(new BlockPos(player.posX, player.posY, player.posZ))
                             && world.rand.nextInt(2) == 0) {
-                        player.addPotionEffect(new PotionEffect(MobEffects.FIRE_RESISTANCE, 600)); // i have no clue how long that is
                         // is this the kind of thing we should do some server-side stuff with??? is the server-side stuff we need to do just a `worldIn.isRemote` check??
                         world.addWeatherEffect(new EntityLightningBolt(world, player.posX, player.posY, player.posZ, false));
                     }

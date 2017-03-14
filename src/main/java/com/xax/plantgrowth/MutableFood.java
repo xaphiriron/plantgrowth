@@ -19,16 +19,18 @@ public class MutableFood extends ItemFood implements INamed {
         this.name = name;
         setUnlocalizedName(name);
         setRegistryName(name);
+
+        this.setCreativeTab(CreativeTabs.FOOD);
         
         this.foodCallback = null;
+    }
+    public String getName() {
+        return this.name;
     }
     
     public MutableFood setFoodCallback (TriConsumer<ItemStack,World,EntityPlayer> foodCallback) {
         this.foodCallback = foodCallback;
         return this;
-    }
-    public String getName() {
-        return this.name;
     }
 
     @Override

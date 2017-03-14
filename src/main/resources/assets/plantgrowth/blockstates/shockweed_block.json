@@ -8,52 +8,53 @@
   }
 , "variants":
   { "age=0,yield=0":
-    { "textures":
-      { "cross": "plantgrowth:blocks/shockweed_stage_0"
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/shockweed_stage_0"
+        }
       }
-    }
+    ]
   , "age=1,yield=0":
-    { "model": "cross"
-    , "textures":
-      { "cross": "plantgrowth:blocks/shockweed_stage_1"
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/shockweed_stage_1"
+        }
       }
-    }
+    ]
   , "age=2,yield=0":
-    { "model": "cross"
-    , "textures":
-      { "cross": "plantgrowth:blocks/shockweed_stage_2"
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/shockweed_stage_2"
+        }
       }
-    }
+    ]
   , "age=3,yield=0":
-    { "model": "cross"
-    , "textures":
-      { "cross": "plantgrowth:blocks/shockweed_stage_3"
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/shockweed_stage_3"
+        }
       }
-    }
+    ]
   , "age=0,yield=1":
-    { "model": "cross"
-    , "textures":
-      { "cross": "plantgrowth:blocks/shockweed_stage_0_withered"
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/shockweed_stage_0_withered"
+        }
       }
-    }
+    ]
   , "age=1,yield=1":
-    { "model": "cross"
-    , "textures":
-      { "cross": "plantgrowth:blocks/shockweed_stage_1_withered"
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/shockweed_stage_1_withered"
+        }
       }
-    }
+    ]
   , "age=2,yield=1":
-    { "model": "cross"
-    , "textures":
-      { "cross": "plantgrowth:blocks/shockweed_stage_2_withered"
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/shockweed_stage_2_withered"
+        }
       }
-    }
+    ]
   , "age=3,yield=1":
-    { "model": "cross"
-    , "textures":
-      { "cross": "plantgrowth:blocks/shockweed_stage_3_withered"
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/shockweed_stage_3_withered"
+        }
       }
-    }
+    ]
   , "inventory":
     { "model": "item/generated"
     , "layer0": "plantgrowth:blocks/shockweed_stage_0"
