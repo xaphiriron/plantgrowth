@@ -1,0 +1,48 @@
+{ "forge_marker": 1
+, "defaults":
+  { "transform": "forge:default-block"
+  , "model": "cross"
+  }
+, "variants":
+  { "age=0":
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/moonflower_stage_0"
+        }
+      }
+    ]
+  , "age=1":
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/moonflower_stage_1"
+        }
+      }
+    ]
+  , "age=2":
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/moonflower_stage_2"
+        }
+      }
+    ]
+  , "age=3":
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/moonflower_stage_3"
+        }
+      }
+    ]
+  , "age=4":
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/moonflower_stage_4"
+        }
+      }
+    ]
+  , "age=5":
+    [ { "textures":
+        { "cross": "plantgrowth:blocks/moonflower_stage_5"
+        }
+      }
+    ]
+  , "inventory":
+    { "model": "item/generated"
+    , "layer0": "plantgrowth:blocks/moonflower_stage_0"
+    }
+  }
+}

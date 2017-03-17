@@ -1,0 +1,67 @@
+{ "forge_marker": 1
+, "defaults":
+  { "transform": "forge:default-block"
+  , "model": "plantgrowth:moonflower_blossom_stage_0"
+  , "textures":
+    { "side": "plantgrowth:blocks/moonflower_blossom_stage_0"
+    , "top": "plantgrowth:blocks/moonflower_blossom_top"
+    , "bottom": "plantgrowth:blocks/moonflower_blossom_top"
+    }
+  }
+, "variants":
+  { "age=0,yield=0":
+    [ { "model": "plantgrowth:moonflower_blossom_stage_0"
+      , "textures":
+        { "side": "plantgrowth:blocks/moonflower_blossom_stage_0"
+        , "top": "plantgrowth:blocks/moonflower_blossom_top"
+        , "bottom": "plantgrowth:blocks/moonflower_blossom_top"
+        }
+      }
+    ]
+  , "age=1,yield=0":
+    [ { "model": "plantgrowth:moonflower_blossom_stage_1"
+      , "textures":
+        { "side": "plantgrowth:blocks/moonflower_blossom_stage_1"
+        , "top": "plantgrowth:blocks/moonflower_blossom_top"
+        , "bottom": "plantgrowth:blocks/moonflower_blossom_top"
+        }
+      }
+    ]
+  , "age=2,yield=0":
+    [ { "model": "plantgrowth:moonflower_blossom_stage_2"
+      , "textures":
+        { "side": "plantgrowth:blocks/moonflower_blossom_stage_2"
+        , "top": "plantgrowth:blocks/moonflower_blossom_top"
+        , "bottom": "plantgrowth:blocks/moonflower_blossom_top"
+        }
+      }
+    ]
+  , "age=3,yield=0":
+    [ { "model": "plantgrowth:moonflower_blossom_stage_3"
+      , "textures":
+        { "side": "plantgrowth:blocks/moonflower_blossom_stage_3"
+        , "top": "plantgrowth:blocks/moonflower_blossom_flowered"
+        , "bottom": "plantgrowth:blocks/moonflower_blossom_top"
+        }
+      }
+    ]
+  , "age=3,yield=1":
+    [ { "model": "plantgrowth:moonflower_blossom_stage_3"
+      , "textures":
+        { "side": "plantgrowth:blocks/moonflower_blossom_stage_3_withered"
+        , "top": "plantgrowth:blocks/moonflower_blossom_flowered_withered"
+        , "bottom": "plantgrowth:blocks/moonflower_blossom_top_withered"
+        }
+      }
+    ]
+  , "age=0,yield=1":
+    [ { "model": "plantgrowth:moonflower_blossom_stage_0" }
+    ]
+  , "age=1,yield=1":
+    [ { "model": "plantgrowth:moonflower_blossom_stage_1" }
+    ]
+  , "age=2,yield=1":
+    [ { "model": "plantgrowth:moonflower_blossom_stage_2" }
+    ]
+  }
+}
