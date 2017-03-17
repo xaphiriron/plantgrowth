@@ -11,7 +11,9 @@ import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 import com.xax.enumerable.BitField;
+import com.xax.plantgrowth.util.QuadFunction;
 import com.xax.plantgrowth.util.QuadPredicate;
+import com.xax.plantgrowth.util.QuintConsumer;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockBush;
@@ -33,18 +35,24 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 
-public class MutableBush extends BlockBush implements IGrowable, INamed {
+public class MutableBush extends BlockBush implements IGrowable, IPlantable, INamed {
+    private static final AxisAlignedBB DEFAULT_BOUNDING = new AxisAlignedBB (0,0,0,1,1,1);
+    private String name;
+
     private ArrayList<Block> growsOn;
     private GrowthType growthType;
-    private String name;
+
     private int lowLight;
     private int highLight;
     private int lowElevation;
     private int highElevation;
 
+    private QuintConsumer<MutableBush, World, BlockPos, IBlockState, Random> customGrowth;
+
+    private ArrayList<AxisAlignedBB> aabbs = new ArrayList<AxisAlignedBB>();
+
     private int maxAge;
     private BitField<PropertyInteger> age;
-    private ArrayList<AxisAlignedBB> aabbs = new ArrayList<AxisAlignedBB>();
     
     private boolean witherable;
     private int witherVal; // the yield data value that means "this plant is withered"
@@ -55,6 +63,7 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
     private BitField<PropertyInteger> yield;
     
     private HashSet<GrowthModifier> growthModifiers;
+    private QuintConsumer<MutableBush, World, BlockPos, IBlockState, Random> customFullGrowth;
     
     private int spreadHoriz;
     private int spreadVert;
@@ -62,6 +71,7 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
     
     private Item seed;
     private Item crop;
+    private QuadFunction<MutableBush, IBlockState, Random, Integer, ArrayList<ItemStack>> customItemDrop;
     
     private boolean inConstructor;
     
@@ -90,6 +100,7 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         PREFERS_LIGHT,  // grows slower at lower light levels
         PREFERS_DARK,   // grows slower at higher light levels
         LIKES_RAIN,     // grows (considerably) faster when it's raining
+        REQUIRES_OUTDOORS, // only grows when it's outdoors (canSeeSky)
         SPREADS;        // spreads like mushrooms. if it has growth stages, only spreads at full growth
     }
 
@@ -142,6 +153,8 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         this.witheringCallback = null;
         
         this.growthModifiers = new HashSet<GrowthModifier>();
+        this.customGrowth = null;
+        this.customFullGrowth = null;
 
         this.spreadHoriz = 1;
         this.spreadVert = 1;
@@ -149,6 +162,12 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         
         this.crop = null;
         this.seed = null;
+        this.customItemDrop = null;
+        
+        this.boundX = 0;
+        this.boundZ = 0;
+        this.boundXFar = 1;
+        this.boundZFar = 1;
 
         this.setHardness(0.0F);
         this.setSoundType(SoundType.PLANT);
@@ -183,6 +202,31 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         for (GrowthModifier mod : mods) {
             this.growthModifiers.add(mod);
         }
+        return this;
+    }
+    
+    public MutableBush atFullGrowthTick(QuintConsumer<MutableBush, World, BlockPos, IBlockState, Random> customFullGrowth) {
+        this.customFullGrowth = customFullGrowth;
+        return this;
+    }
+    
+    /**
+     * set a custom growth function. this will bypass all default growth code, including withering checks. it will also disable receiving random growth ticks: the function is presumed to use `world.scheduleUpdate` to manage its own growth cycle.
+     * @param customGrowth
+     * @return
+     */
+    public MutableBush setCustomGrowth(QuintConsumer<MutableBush, World, BlockPos, IBlockState, Random> customGrowth) {
+        this.customGrowth = customGrowth;
+        this.setTickRandomly(false);
+        return this;
+    }
+    /**
+     * set a custom item drop function for when the plant is destroyed. this overrides any seed or crop value set.
+     * @param itemFunc
+     * @return
+     */
+    public MutableBush setCustomItemDrop(QuadFunction<MutableBush, IBlockState,Random,Integer,ArrayList<ItemStack>> itemFunc) {
+        this.customItemDrop = itemFunc;
         return this;
     }
     
@@ -277,6 +321,13 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         return this;
     }
     
+    
+
+    private double boundX;
+    private double boundZ;
+    private double boundXFar;
+    private double boundZFar;
+    
     /**
      * takes a list of integer values that determine how tall the block is, in eighths of a block (so 8 is one block tall).
      * 
@@ -295,12 +346,40 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
             if (h < 1 || h > 8) {
                 throw new RuntimeException("height value outside range (1-8 allowed; got " + h + ")");
             }
-            this.aabbs.add(new AxisAlignedBB(0.0D, 0.0D, 0.0D, 1.0D, (double)h / 8.0D, 1.0D));
+            this.aabbs.add(new AxisAlignedBB
+                    (this.boundX, 0.0D, this.boundZ
+                    ,this.boundXFar, (double)h / 8.0D, this.boundZFar
+                    ));
             last = h.intValue();
         }
         for (int i = extraNeeded; i > 0 ; i--) {
-            this.aabbs.add(new AxisAlignedBB(0.0D, 0.0D, 0.0D, 1.0D, (double)last / 8.0D, 1.0D));
+            this.aabbs.add(new AxisAlignedBB
+                    (this.boundX, 0.0D, this.boundZ
+                    ,this.boundXFar, (double)last / 8.0D, this.boundZFar
+                    ));
         }
+        return this;
+    }
+
+    public MutableBush setBoundingBox(int width, int depth) {
+        return this.setBoundingBox (width, depth, (16 - width) / 2, (16 - depth) / 2);
+    }
+    public MutableBush setBoundingBox(int width, int depth, int xDisplace, int zDisplace) {
+        this.boundX = xDisplace * 0.0625D;
+        this.boundXFar = this.boundX + width * 0.0625D;
+
+        this.boundZ = zDisplace * 0.0625D;
+        this.boundZFar = this.boundZ + depth * 0.0625D;
+
+        ArrayList<AxisAlignedBB> newAABBs = new ArrayList<AxisAlignedBB>();
+        for (AxisAlignedBB box : this.aabbs) {
+            newAABBs.add (new AxisAlignedBB
+                (this.boundX, box.minY, this.boundZ
+                ,this.boundXFar, box.maxY, this.boundZFar
+                ));
+        }
+        this.aabbs = newAABBs;
+        
         return this;
     }
 
@@ -390,13 +469,12 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         return height >= this.lowElevation && height <= this.highElevation;
     }
 
-    
     @Override
     public AxisAlignedBB getBoundingBox(IBlockState state, IBlockAccess source, BlockPos pos) {
-        if (this.hasAge()) {
-            return this.aabbs.get(state.getValue(this.getAgeProperty()));
+        if (this.hasAge() && this.aabbs.size() >= this.maxAge) {
+            return this.aabbs.get(state.getValue(this.age.getVal()));
         } else {
-            return this.aabbs.get(0);
+            return MutableBush.DEFAULT_BOUNDING;
         }
     }
 
@@ -423,6 +501,13 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         return this.canSustainBush (supporting) && this.canGrowInLight (worldIn.getLight(pos)) && this.canGrowAtElevation (pos.getY());
     }
 
+    @Override
+    public void onBlockAdded(World world, BlockPos pos, IBlockState state) {
+        super.onBlockAdded(world, pos, state);
+        if (this.customGrowth != null) {
+            this.customGrowth.accept(this, world, pos, state, world.rand);
+        }
+    }
 
     /**
      * IGrowable interface
@@ -458,21 +543,21 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         return this.getDefaultState().withProperty(this.getAgeProperty(), Integer.valueOf(age));
     }
 
-    protected int getAge(IBlockState state) {
+    public int getAge(IBlockState state) {
         if (!this.hasAge()) {
             throw new RuntimeException ("tried to get age on a plant block without an age property.");
         } else {
             return state.getValue(this.age.getVal());
         }
     }
-    protected int getYield(IBlockState state) {
+    public int getYield(IBlockState state) {
         if (this.maxYield == 0) {
             throw new RuntimeException ("tried to get yield on a plant block without a yield property.");
         } else {
             return state.getValue(this.yield.getVal());
         }
     }
-    protected boolean getWithered(IBlockState state) {
+    public boolean getWithered(IBlockState state) {
         int witheredValue;
         if (!this.witherable) {
             throw new RuntimeException ("tried to get withered on a plant block without a withered property.");
@@ -485,6 +570,23 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
             */
             witheredValue = this.maxYield + 1;
             return state.getValue(this.yield.getVal()) == witheredValue;
+        }
+    }
+    public IBlockState setWithered (IBlockState state) {
+        if (!this.witherable) {
+            throw new RuntimeException ("tried to set withered on a plant block without a withered property.");
+        }
+        return state.withProperty(this.yield.getVal(), this.witherVal);
+    }
+    public IBlockState advanceGrowth (IBlockState state) {
+        if (!this.hasAge()) {
+            throw new RuntimeException ("tried to set age on a plant block without an age property.");
+        }
+        if (this.isMaxAge(state)) {
+            return state;
+        } else {
+            int age = this.getAge(state);
+            return state.withProperty(this.age.getVal(), age + 1);
         }
     }
     
@@ -505,9 +607,46 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
             return state.getValue(this.age.getVal()).intValue() >= this.maxAge;
         }
     }
+    public boolean isWithered(IBlockState state) {
+        return state.getValue(this.yield.getVal()) == this.witherVal;
+    }
 
-    // not sure under what conditions these are called
-    // this is called when the block is destroyed? i guess?
+    // this is called either directly or indirectly through `dropBlockAsItem`
+    @Override
+    public void dropBlockAsItemWithChance(World world, BlockPos pos, IBlockState state, float chance, int fortune) {
+        if (!world.isRemote) {
+            ArrayList<ItemStack> drops;
+            if (this.customItemDrop != null) {
+                drops = this.customItemDrop.apply(this, state, world.rand, fortune);
+            } else {
+                drops = new ArrayList<ItemStack>();
+                drops.add(new ItemStack
+                        ( this.getItemDropped(state, world.rand, fortune)
+                        , this.quantityDroppedWithBonus(fortune, world.rand)
+                        , this.damageDropped(state)
+                        ));
+            }
+            if (drops == null) {
+                return;
+            }
+            for (ItemStack s : drops) {
+                Item item = s == null ? null : s.getItem();
+                if (item == null) {
+                    continue;
+                }
+                for (int i = 0; i < s.stackSize; ++i) {
+                    if (world.rand.nextFloat() <= chance) {
+                       spawnAsEntity(world, pos, new ItemStack(item, 1, s.getItemDamage()));
+                   }
+                }
+            }
+        }
+    }
+    /*
+     * these three functions (getItemDropped, quantityDropped, and
+     * quantityDroppedWithBonus) are all only(?) called from
+     * `dropBlockAsItemWithChance`
+     */
     @Override
     @Nullable
     public Item getItemDropped(IBlockState state, Random rand, int fortune) {
@@ -516,6 +655,19 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         }
         return this.seed;
     }
+    @Override
+    public int quantityDropped(Random rand) {
+        if (this.customItemDrop != null) {
+        }
+        return 1;
+    }
+    /*
+    @Override
+    public int quantityDroppedWithBonus(int fortune, Random random)
+    {
+        return 2;
+    }
+    */
     // no clue about this
     @Override
     public ItemStack getItem(World worldIn, BlockPos pos, IBlockState state) {
@@ -530,7 +682,12 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
     public void updateTick(World worldIn, BlockPos pos, IBlockState state, Random rand) {
         super.updateTick(worldIn, pos, state, rand);
         boolean resetYield = false;
-        
+
+        if (this.customGrowth != null) {
+            this.customGrowth.accept(this, worldIn, pos, state, rand);
+            return;
+        }
+
         if (this.witherable) {
             if (this.witheringCallback != null && this.witheringCallback.test(worldIn, pos, state, rand)) {
                 switch (this.witheringAction) {
@@ -558,10 +715,13 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
                 state = state.withProperty(this.yield.getVal(), 0);
             }
         }
-
         if (this.hasAge() && this.canGrowInLight (worldIn.getLightFromNeighbors(pos.up()))) {
             int age = this.getAge(state);
-            if (age < this.getMaxAge()) {
+            if (age >= this.getMaxAge()) {
+                if (this.customFullGrowth != null) {
+                    this.customFullGrowth.accept(this, worldIn, pos, state, rand);
+                }
+            } else {
                 float f = getGrowthChance(this, worldIn, pos);
                 if (rand.nextInt((int)(25.0F / f) + 1) == 0) {
                     worldIn.setBlockState(pos, state.withProperty(this.age.getVal(), age + 1), 2);
@@ -726,6 +886,15 @@ public class MutableBush extends BlockBush implements IGrowable, INamed {
         if (this.growthModifiers.contains(GrowthModifier.LIKES_RAIN)) {
             if (worldIn.isRainingAt(pos)) {
                 f += 5.0F;
+            }
+        }
+        
+        // slight boost to growth when outdoors; huge penalty if not outdoors
+        if (this.growthModifiers.contains(GrowthModifier.REQUIRES_OUTDOORS)) {
+            if (worldIn.canSeeSky(pos)) {
+                f += 1.0F;
+            } else {
+                f *= 0.125F;
             }
         }
 
