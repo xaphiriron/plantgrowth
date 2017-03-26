@@ -2,11 +2,17 @@ package com.xax.plantgrowth.proxy;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+//import java.util.List;
 import java.util.Random;
 import java.util.function.BiConsumer;
 
 import org.apache.logging.log4j.Logger;
 
+import com.xax.config.CrossRecipe;
+import com.xax.config.PlantGrowthConfig;
+//import com.xax.hook.CrossRecipe;
+//import com.xax.hook.CrossReq;
+//import com.xax.hook.CrossUtils;
 import com.xax.hook.EventHook;
 import com.xax.plantgrowth.Growth;
 import com.xax.plantgrowth.INamed;
@@ -14,8 +20,8 @@ import com.xax.plantgrowth.MutableBush;
 import com.xax.plantgrowth.util.QuadFunction;
 import com.xax.plantgrowth.util.QuadPredicate;
 import com.xax.plantgrowth.util.QuintConsumer;
-//import com.xax.plantgrowth.MutableItem;
 import com.xax.plantgrowth.util.TriConsumer;
+//import com.xax.plantgrowth.util.TriPredicate;
 import com.xax.plantgrowth.MutableBush.GrowthModifier;
 import com.xax.plantgrowth.MutableBush.Witherable;
 import com.xax.plantgrowth.MutableBush.WitheringAction;
@@ -45,29 +51,38 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.brewing.BrewingRecipeRegistry;
 import net.minecraftforge.fml.common.registry.GameRegistry;
 
-public abstract class CommonProxy implements IProxy{
+public abstract class CommonProxy{
     public enum Side {
         CLIENT,
         SERVER
     }
     private final boolean runClientHooks;
-    
+    private EventHook tickHandler;
+
     public CommonProxy(Side side) {
         this.runClientHooks = side == Side.CLIENT ? true : false;
+
     }
-    
+
+    private PlantGrowthConfig config;
+
     public static MutableBush shockweed;
     public static MutableFood lightningPod;
     public static MutableSeed moonflowerSeed;
     public static MutableBush moonflowerPlant;
     public static MutableBush moonflowerBlossom;
     public static MutableItem moonflowerPetal;
-    
-    public void preInit(Logger log) {
-        log.info("forge preinit");
-        EventHook tickHandler = new EventHook();
-        MinecraftForge.EVENT_BUS.register(tickHandler);
 
+    public void preInit(Logger log, PlantGrowthConfig config) {
+        log.info("forge preinit");
+
+        // i have no clue if this should only be done on the server side
+        tickHandler = new EventHook(log);
+        MinecraftForge.EVENT_BUS.register(this.tickHandler);
+
+        this.config = config;
+
+        // initialize all blocks
         lightningPod = new MutableFood("lightning_pod", 3, 0.6f, false);
         shockweed = new MutableBush("shockweed_block", 4, 0, Witherable.WITHERABLE);
 
@@ -76,8 +91,7 @@ public abstract class CommonProxy implements IProxy{
         moonflowerBlossom = new MutableBush ("moonflower_blossom", 4, 0, Witherable.WITHERABLE);
         moonflowerSeed = new MutableSeed("moonflower_seed", moonflowerPlant);
 
-
-        // construction
+        // construct block parameters
         lightningPod
         .setFoodCallback(new TriConsumer<ItemStack,World,EntityPlayer>() {
             public void accept(ItemStack itemStack, World world, EntityPlayer player) {
@@ -110,7 +124,7 @@ public abstract class CommonProxy implements IProxy{
         moonflowerBlossom
             .setGrowthBlocks(Arrays.asList((Block)moonflowerPlant))
             .setBoundingBox(4, 4)
-            .setGrowthHeight(Arrays.asList (4,6,8,8))
+            .setGrowthHeight(Arrays.asList (2,3,4,4))
             .setCustomGrowth(new QuintConsumer<MutableBush, World, BlockPos, IBlockState, Random>() {
                 public void accept (MutableBush this_, World world, BlockPos pos, IBlockState state, Random rand) {
                     System.out.println("in moonflower blossom update func (" + pos + ")");
@@ -181,7 +195,8 @@ public abstract class CommonProxy implements IProxy{
             });
 
         log.info("blocks created");
-        
+
+        // register all blocks
         this.register(lightningPod);
         this.register(shockweed);
 
@@ -189,18 +204,16 @@ public abstract class CommonProxy implements IProxy{
         this.register(moonflowerPetal);
         this.register(moonflowerPlant, NeedsItemBlock.STANDALONE);
         this.register(moonflowerBlossom, NeedsItemBlock.STANDALONE);
-        
+
         log.info("blocks registered");
 
         // try to plant shockweed on lightning strikes, at 25% chance
-        tickHandler.attachLightningStrikeHandler (new BiConsumer<World,EntityLightningBolt>() {
+        this.tickHandler.attachLightningStrikeHandler (new BiConsumer<World,EntityLightningBolt>() {
             public void accept(World world, EntityLightningBolt bolt) {
                 //System.out.println("in lightning handler");
                 if(world.rand.nextInt(4) == 0) {
                     BlockPos hit = new BlockPos(bolt.posX, bolt.posY, bolt.posZ);
                     BlockPos supporting = hit.down();
-                    //System.out.println("hit: " + hit + " (" + world.getBlockState(hit).getBlock() + "); supporting: " + supporting + " (" + world.getBlockState(supporting).getBlock() + ")");
-                    //System.out.println("shockweed can stay?: " + (shockweed.canBlockStay(world, supporting, world.getBlockState (supporting))) + "; hit block is air?: " + (world.isAirBlock(hit)));
                     if(shockweed.canBlockStay(world, supporting, world.getBlockState (supporting))
                             && (world.isAirBlock(hit) || world.getBlockState(hit).getBlock() == Blocks.FIRE)) {
                         world.setBlockState(hit, shockweed.getDefaultState(), 2);
@@ -209,15 +222,28 @@ public abstract class CommonProxy implements IProxy{
             }
         });
 
+        this.tickHandler.setCrossTicks (this.config.crossbreedingTicks);
+
         log.info("event handlers attached");
+        log.info("done preinit");
+    }
+
+    public void init(Logger log, ArrayList<CrossRecipe> crossRecipes) {
+        log.info("forge init");
 
         BrewingRecipeRegistry.addRecipe
             ( PotionUtils.addPotionToItemStack(new ItemStack(Items.POTIONITEM, 1), PotionTypes.AWKWARD)
             , new ItemStack (moonflowerPetal)
             , PotionUtils.addPotionToItemStack(new ItemStack(Items.POTIONITEM, 1), PotionTypes.NIGHT_VISION)
             );
+
+        log.info("base recipes added");
         
-        log.info("recipes added");
+        for (CrossRecipe rec : crossRecipes) {
+            this.tickHandler.addCross(rec);
+        }
+        log.info("crossbreeding recipes added");
+        log.info("done init");
     }
 
     private enum NeedsItemBlock {
