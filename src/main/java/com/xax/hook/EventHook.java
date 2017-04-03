@@ -27,6 +27,7 @@ public class EventHook {
 
     protected int updateLCG = (new Random()).nextInt();
     protected int crossTicks = 3;
+    protected int crossSpacing = 8;
 
     protected Logger log;
 
@@ -40,8 +41,9 @@ public class EventHook {
         this.lightningHandler = lightningHandler;
     }
 
-    public void setCrossTicks (int ticks) {
+    public void setCrossTicks (int ticks, int spacing) {
         this.crossTicks = ticks;
+        this.crossSpacing = spacing;
     }
 
     public void addCross (CrossRecipe rec) {
@@ -76,6 +78,9 @@ public class EventHook {
         }
         int randomTicks = this.crossTicks;
         if (randomTicks <= 0 ) {
+            return;
+        }
+        if (!(this.crossSpacing == 1 || (world.getWorldTime() % this.crossSpacing) == 0)) {
             return;
         }
         int xI;

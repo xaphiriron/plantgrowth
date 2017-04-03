@@ -222,7 +222,7 @@ public abstract class CommonProxy{
             }
         });
 
-        this.tickHandler.setCrossTicks (this.config.crossbreedingTicks);
+        this.tickHandler.setCrossTicks (this.config.crossbreedingTicks, this.config.crossbreedingFrequency);
 
         log.info("event handlers attached");
         log.info("done preinit");

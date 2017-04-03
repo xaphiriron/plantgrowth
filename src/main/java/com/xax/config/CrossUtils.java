@@ -104,6 +104,7 @@ public class CrossUtils {
         }
     }
 
+    // all these check only the metadata and not the block; that's fine, since the block is checked in `CrossReq` and the predicate is only called on a block match.
     public static final <T extends Comparable<T>, V extends T> Predicate<Integer> allowVariant (final Block b, final IProperty<T> iprop, final V val) {
         return new Predicate<Integer>() {
             public boolean test (Integer meta) {

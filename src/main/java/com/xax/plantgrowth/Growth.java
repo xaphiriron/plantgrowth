@@ -47,8 +47,10 @@ public class Growth {
         XConfig forgeConfig = new XConfig(forgeConfigFile, "0.1", false);
         forgeConfig.load();
 
-        Property crossbreedingTicksProp = forgeConfig.get("general", "crossbreeding ticks", 3, "determines the amount of random ticks allowed for crossbreeding checks. like `randomGrowthTicks`.");
-        int crossbreedingTicks = crossbreedingTicksProp.getInt(3);
+        Property crossBlockTicksProp = forgeConfig.get("general", "crossbreeding ticks", 3, "determines the amount of random ticks allowed for crossbreeding checks. like `randomGrowthTicks`.");
+        int crossBlocksPerCrossTick = crossBlockTicksProp.getInt(3);
+        Property crossTicksProp = forgeConfig.get("general", "crossbreeding frequency", 8, "determines on which ticks the crossbreeding checks occur. 8 = on every 8th tick; 1 = on every tick; etc.");
+        int crossTicksPerTick = crossTicksProp.getInt(8);
 
         if (forgeConfig.hasChanged()) {
             forgeConfig.save();
@@ -57,7 +59,7 @@ public class Growth {
         // 1. load the forge-standard config in *modid*/config.cfg
 
         // can't do the recipe loading now b/c blocks from other mods might not be loaded
-        proxy.preInit(log, new PlantGrowthConfig (crossbreedingTicks));
+        proxy.preInit(log, new PlantGrowthConfig (crossBlocksPerCrossTick, crossTicksPerTick));
     }
 
     @EventHandler
