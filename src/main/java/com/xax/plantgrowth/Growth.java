@@ -28,10 +28,12 @@ import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 
-@Mod(modid = "plantgrowth", version = "0.1")
+@Mod(modid = Growth.modId, version = Growth.version)
 public class Growth {
     public static final String modId = "plantgrowth";
-    public static final Logger log = LogManager.getLogger("plantgrowth");
+    public static final String version = "0.1";
+
+    public static final Logger log = LogManager.getLogger(Growth.modId);
     
     @SidedProxy(modId = Growth.modId, clientSide = "com.xax.plantgrowth.proxy.ClientProxy", serverSide = "com.xax.plantgrowth.proxy.ServerProxy")
     public static CommonProxy proxy;
@@ -63,7 +65,7 @@ public class Growth {
     }
 
     @EventHandler
-    public void load(FMLInitializationEvent event) {
+    public void load(FMLInitializationEvent event) throws FileNotFoundException {
         Gson gson = new GsonBuilder()
                 .registerTypeAdapter(CrossReq.class, new CrossReqDeserializer())
                 .registerTypeAdapter(CrossPred.class, new CrossPredDeserializer())
@@ -87,13 +89,10 @@ public class Growth {
             if (!recipeFile.getName().endsWith(".json")) {
                 continue; // ignore files that aren't .json extension
             }
-            try {
-                reader = new JsonReader(new FileReader(recipeFile));
-                data = gson.fromJson(reader, CrossRecipeList.class);
-                crossRecipes.addAll(data.recipes);
-            } catch (FileNotFoundException e) {
-                // failed to find a file that .listFiles() said existed?!
-            }
+            // FileReader can throw FileNotFoundException, so i guess if the file is deleted after the .listFiles but before it's parsed?
+            reader = new JsonReader(new FileReader(recipeFile));
+            data = gson.fromJson(reader, CrossRecipeList.class);
+            crossRecipes.addAll(data.recipes);
         }
         proxy.init(log, crossRecipes);
     }
