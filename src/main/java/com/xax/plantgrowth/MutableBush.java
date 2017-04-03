@@ -1,7 +1,6 @@
 package com.xax.plantgrowth;
 
 import java.lang.reflect.Field;
-//import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -34,6 +33,7 @@ import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
+import net.minecraftforge.fml.relauncher.ReflectionHelper;
 
 public class MutableBush extends BlockBush implements IGrowable, IPlantable, INamed {
     private static final AxisAlignedBB DEFAULT_BOUNDING = new AxisAlignedBB (0,0,0,1,1,1);
@@ -434,23 +434,9 @@ public class MutableBush extends BlockBush implements IGrowable, IPlantable, INa
     }
     
     private void hackBlockState() {
+        Field state = ReflectionHelper.findField (Block.class, "field_176227_L", "blockState");
         try {
-            Field state = null;
-            // .getField only finds public fields; blockState is protected and so can't be found.
-            // but .getDeclaredFields returns everything!
-            for (Field f : Block.class.getDeclaredFields()) {
-                if (f.getName() == "blockState") {
-                    state = f;
-                    break;
-                }
-            }
-            if (state == null) {
-                throw new NoSuchFieldException("blockState");
-            }
-            state.setAccessible(true);
             state.set(this, this.createBlockState());
-        } catch (NoSuchFieldException e) {
-            System.err.println("programmer error hacking blockstate; no such field " + e.getMessage());
         } catch (IllegalAccessException e) {
             System.err.println("blockState hack prevented; everything is about to go horribly wrong. (" + e.getMessage() + ")");
         }
